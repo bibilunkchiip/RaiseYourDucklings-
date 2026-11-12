@@ -1,0 +1,1475 @@
+```html
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raise your Ducklings! - Interactive Lake Pet</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts (Fredoka & Nunito) -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            font-family: 'Nunito', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        h1, h2, h3, .font-fun {
+            font-family: 'Fredoka', cursive;
+        }
+
+        /* Canvas dan Efek Latar Belakang Dynamic */
+        #lakeCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* Weather Overlay Patterns */
+        .weather-rain {
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0.15));
+            pointer-events: none;
+        }
+
+        /* Custom Scrollbar for sidebar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        /* Floating Animation */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-8px) rotate(2deg); }
+        }
+        .animate-float {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        /* Heart Splash Animation */
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(0.8); }
+            100% { opacity: 0; transform: translateY(-40px) scale(1.3); }
+        }
+        .heart-particle {
+            position: absolute;
+            animation: floatUp 1.2s ease-out forwards;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        /* Weather Effects Overlay */
+        .weather-effect {
+            pointer-events: none;
+            position: absolute;
+            inset: 0;
+            z-index: 15;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden bg-slate-900 text-slate-800 relative select-none">
+
+    <!-- Danau Interaktif Canvas -->
+    <canvas id="lakeCanvas"></canvas>
+
+    <!-- Overlay Efek Cuaca (Rain drops / Snow / Particles) -->
+    <div id="weatherOverlay" class="weather-effect transition-all duration-1000"></div>
+
+    <!-- Interface UI Layar Utama -->
+    <div class="relative z-20 h-full w-full flex flex-col justify-between p-4 md:p-6 pointer-events-none">
+        
+        <!-- Top Bar: Status Bebek & Header -->
+        <div class="flex justify-between items-start w-full gap-4">
+            <!-- Profil & Mood Bebek -->
+            <div class="bg-white/85 backdrop-blur-md p-4 rounded-3xl shadow-xl border border-white/50 pointer-events-auto flex items-center gap-4 transition-all duration-300 hover:bg-white/95 max-w-xs md:max-w-sm">
+                <div class="relative">
+                    <div id="duckAvatarContainer" class="w-14 h-14 rounded-2xl bg-amber-100 flex items-center justify-center text-3xl border-2 border-amber-300 shadow-inner">
+                        🐤
+                    </div>
+                    <span id="duckMoodBadge" class="absolute -bottom-1 -right-1 text-lg">😊</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between gap-2">
+                        <h2 id="duckNameDisplay" class="font-bold text-lg text-slate-800 truncate">Kwekie</h2>
+                        <button onclick="openRenameModal()" class="text-xs text-amber-600 hover:text-amber-800 p-1" title="Ubah Nama"><i class="fa-solid fa-pen"></i></button>
+                    </div>
+                    <p id="duckBreedDisplay" class="text-xs text-slate-500 font-semibold truncate mb-1">Bebek Kuning Klasik</p>
+                    
+                    <!-- Hunger Bar -->
+                    <div class="w-full bg-slate-200 rounded-full h-2 mb-1 overflow-hidden" title="Kenyang">
+                        <div id="hungerBar" class="bg-emerald-500 h-2 rounded-full transition-all duration-500" style="width: 80%"></div>
+                    </div>
+                    <!-- Energy/Happiness Bar -->
+                    <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden" title="Kebahagiaan">
+                        <div id="happyBar" class="bg-rose-400 h-2 rounded-full transition-all duration-500" style="width: 90%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Header Title & Ambient Sound Toggle -->
+            <div class="flex flex-col items-end gap-2">
+                <div class="bg-white/90 backdrop-blur-md px-4 py-2 rounded-2xl shadow-lg border border-white/50 pointer-events-auto flex items-center gap-3">
+                    <span class="font-fun font-bold text-amber-600 text-base md:text-lg tracking-wide">Raise your Ducklings! 🐣</span>
+                    <button id="soundToggleBtn" onclick="toggleAudio()" class="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center hover:bg-amber-600 transition shadow">
+                        <i id="soundIcon" class="fa-solid fa-volume-high text-xs"></i>
+                    </button>
+                </div>
+                
+                <!-- Quick Settings Toggle Buttons -->
+                <div class="flex gap-2 pointer-events-auto flex-wrap justify-end">
+                    <button onclick="openFeedbackModal()" class="bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-600 text-slate-900 px-3 md:px-4 py-2 rounded-2xl shadow-md text-xs md:text-sm font-bold flex items-center gap-1 md:gap-2 transition active:scale-95 border border-yellow-200">
+                        <span>Support our duckkies! 💛🐥</span>
+                    </button>
+                    <button onclick="toggleControlPanel()" class="bg-amber-500 hover:bg-amber-600 text-white px-3 md:px-4 py-2 rounded-2xl shadow-md text-xs md:text-sm font-bold flex items-center gap-1 md:gap-2 transition active:scale-95">
+                        <i class="fa-solid fa-palette"></i>
+                        <span>Kustomisasi & Danau</span>
+                    </button>
+                    <button onclick="addNewDuck()" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 md:px-4 py-2 rounded-2xl shadow-md text-xs md:text-sm font-bold flex items-center gap-1 md:gap-2 transition active:scale-95">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>Tambah Bebek</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notification Toast Message -->
+        <div id="toastMessage" class="self-center bg-slate-900/80 text-white text-xs md:text-sm px-4 py-2 rounded-full shadow-lg backdrop-blur-md transition-all duration-300 opacity-0 transform translate-y-4 pointer-events-none">
+            Selamat datang di Raise Your Ducklings! ✨
+        </div>
+
+        <!-- Bottom Action Bar (Interaksi Memelihara) -->
+        <div class="self-center w-full max-w-2xl bg-white/85 backdrop-blur-md p-3 md:p-4 rounded-3xl shadow-2xl border border-white/60 pointer-events-auto flex items-center justify-around gap-1 md:gap-2">
+            <!-- Beri Makan -->
+            <button onclick="feedDuck('pelet')" class="flex flex-col items-center gap-1 group">
+                <div class="w-11 h-11 md:w-13 md:h-13 rounded-2xl bg-amber-100 group-hover:bg-amber-200 text-amber-700 flex items-center justify-center text-lg md:text-xl transition-all shadow-sm group-hover:scale-105 active:scale-95 border border-amber-200">
+                    🌾
+                </div>
+                <span class="text-[10px] md:text-[11px] font-bold text-slate-700">Makanan</span>
+            </button>
+
+            <!-- Elus Bebek -->
+            <button onclick="petDuck()" class="flex flex-col items-center gap-1 group">
+                <div class="w-11 h-11 md:w-13 md:h-13 rounded-2xl bg-rose-100 group-hover:bg-rose-200 text-rose-600 flex items-center justify-center text-lg md:text-xl transition-all shadow-sm group-hover:scale-105 active:scale-95 border border-rose-200">
+                    ✋
+                </div>
+                <span class="text-[10px] md:text-[11px] font-bold text-slate-700">Elus</span>
+            </button>
+
+            <!-- Mandikan Bebek -->
+            <button onclick="washDuck()" class="flex flex-col items-center gap-1 group">
+                <div class="w-11 h-11 md:w-13 md:h-13 rounded-2xl bg-teal-100 group-hover:bg-teal-200 text-teal-600 flex items-center justify-center text-lg md:text-xl transition-all shadow-sm group-hover:scale-105 active:scale-95 border border-teal-200">
+                    🫧
+                </div>
+                <span class="text-[10px] md:text-[11px] font-bold text-slate-700">Mandikan</span>
+            </button>
+
+            <!-- Tidurkan Bebek -->
+            <button onclick="napDuck()" class="flex flex-col items-center gap-1 group">
+                <div class="w-11 h-11 md:w-13 md:h-13 rounded-2xl bg-purple-100 group-hover:bg-purple-200 text-purple-600 flex items-center justify-center text-lg md:text-xl transition-all shadow-sm group-hover:scale-105 active:scale-95 border border-purple-200">
+                    💤
+                </div>
+                <span class="text-[10px] md:text-[11px] font-bold text-slate-700">Tidur</span>
+            </button>
+
+            <!-- Main Air -->
+            <button onclick="splashWater()" class="flex flex-col items-center gap-1 group">
+                <div class="w-11 h-11 md:w-13 md:h-13 rounded-2xl bg-sky-100 group-hover:bg-sky-200 text-sky-600 flex items-center justify-center text-lg md:text-xl transition-all shadow-sm group-hover:scale-105 active:scale-95 border border-sky-200">
+                    💦
+                </div>
+                <span class="text-[10px] md:text-[11px] font-bold text-slate-700">Cipratan</span>
+            </button>
+
+            <!-- Mainan Bebek -->
+            <button onclick="spawnToy()" class="flex flex-col items-center gap-1 group">
+                <div class="w-11 h-11 md:w-13 md:h-13 rounded-2xl bg-indigo-100 group-hover:bg-indigo-200 text-indigo-600 flex items-center justify-center text-lg md:text-xl transition-all shadow-sm group-hover:scale-105 active:scale-95 border border-indigo-200">
+                    ⚽
+                </div>
+                <span class="text-[10px] md:text-[11px] font-bold text-slate-700">Mainan</span>
+            </button>
+
+            <!-- Buka Aksesori Quick-Button -->
+            <button onclick="toggleControlPanel()" class="flex flex-col items-center gap-1 group">
+                <div class="w-11 h-11 md:w-13 md:h-13 rounded-2xl bg-amber-200 group-hover:bg-amber-300 text-amber-800 flex items-center justify-center text-lg md:text-xl transition-all shadow-sm group-hover:scale-105 active:scale-95 border border-amber-400">
+                    👑
+                </div>
+                <span class="text-[10px] md:text-[11px] font-bold text-slate-700">Aksesori</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Sliding Control Panel -->
+    <div id="controlPanel" class="fixed top-0 right-0 h-full w-full sm:w-96 bg-white/95 backdrop-blur-xl z-40 shadow-2xl transition-transform duration-500 translate-x-full overflow-y-auto p-6 flex flex-col justify-between border-l border-slate-100">
+        <div>
+            <!-- Header Panel -->
+            <div class="flex justify-between items-center mb-6 border-b pb-4">
+                <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-palette text-amber-500"></i> Kustomisasi Danau
+                </h2>
+                <button onclick="toggleControlPanel()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="space-y-6">
+                <!-- Select Active Duck -->
+                <div>
+                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">Bebek Terpilih</h3>
+                    <select id="duckSelect" onchange="switchActiveDuck(this.value)" class="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400">
+                    </select>
+                </div>
+
+                <!-- Aksesori Bebek -->
+                <div>
+                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Aksesori Bebek</h3>
+                    <div class="grid grid-cols-3 gap-2" id="accessoryButtons">
+                        <button onclick="setAccessory('none', this)" class="acc-btn border-2 border-amber-500 bg-amber-50 p-2 rounded-xl text-center text-xs font-bold text-slate-700">
+                            Polos
+                        </button>
+                        <button onclick="setAccessory('crown', this)" class="acc-btn border-2 border-slate-200 p-2 rounded-xl text-center text-xs font-bold text-slate-700">
+                            👑 Mahkota
+                        </button>
+                        <button onclick="setAccessory('glasses', this)" class="acc-btn border-2 border-slate-200 p-2 rounded-xl text-center text-xs font-bold text-slate-700">
+                            😎 Kacamata
+                        </button>
+                        <button onclick="setAccessory('ribbon', this)" class="acc-btn border-2 border-slate-200 p-2 rounded-xl text-center text-xs font-bold text-slate-700">
+                            🎀 Pita Red
+                        </button>
+                        <button onclick="setAccessory('hat', this)" class="acc-btn border-2 border-slate-200 p-2 rounded-xl text-center text-xs font-bold text-slate-700">
+                            👒 Topi Jerami
+                        </button>
+                        <button onclick="setAccessory('witch', this)" class="acc-btn border-2 border-slate-200 p-2 rounded-xl text-center text-xs font-bold text-slate-700">
+                            🧙‍♀️ Penyihir
+                        </button>
+                        <button onclick="setAccessory('flower', this)" class="acc-btn border-2 border-slate-200 p-2 rounded-xl text-center text-xs font-bold text-slate-700">
+                            🌸 Bunga
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Jenis Bebek -->
+                <div>
+                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Jenis & Ras Bebek</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="setDuckBreed('classic', this)" class="breed-btn border-2 border-amber-500 bg-amber-50 p-3 rounded-2xl flex items-center gap-3 text-left transition hover:border-amber-400">
+                            <span class="text-2xl">🐤</span>
+                            <div>
+                                <div class="font-bold text-xs text-slate-800">Kuning Klasik</div>
+                                <div class="text-[10px] text-slate-500">Imut & ceria</div>
+                            </div>
+                        </button>
+                        <button onclick="setDuckBreed('wood', this)" class="breed-btn border-2 border-slate-200 p-3 rounded-2xl flex items-center gap-3 text-left transition hover:border-amber-400">
+                            <span class="text-2xl">🦆</span>
+                            <div>
+                                <div class="font-bold text-xs text-slate-800">Bebek Kayu</div>
+                                <div class="text-[10px] text-slate-500">Warna-warni</div>
+                            </div>
+                        </button>
+                        <button onclick="setDuckBreed('gothic', this)" class="breed-btn border-2 border-slate-200 p-3 rounded-2xl flex items-center gap-3 text-left transition hover:border-amber-400">
+                            <span class="text-2xl">🦅</span>
+                            <div>
+                                <div class="font-bold text-xs text-slate-800">Bebek Hitam</div>
+                                <div class="text-[10px] text-slate-500">Eksotis</div>
+                            </div>
+                        </button>
+                        <button onclick="setDuckBreed('golden', this)" class="breed-btn border-2 border-slate-200 p-3 rounded-2xl flex items-center gap-3 text-left transition hover:border-amber-400">
+                            <span class="text-2xl">✨</span>
+                            <div>
+                                <div class="font-bold text-xs text-slate-800">Bebek Emas</div>
+                                <div class="text-[10px] text-slate-500">Mewah & berkilau</div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Custom Warna Kulit/Bulu Bebek -->
+                <div>
+                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Warna Bulu Bebek</h3>
+                    <div class="flex items-center gap-3">
+                        <input type="color" id="duckColorPicker" value="#FACC15" onchange="customDuckColor(this.value)" class="w-10 h-10 rounded-xl cursor-pointer border-0 bg-transparent">
+                        <span class="text-xs text-slate-600 font-semibold">Pilih warna khusus</span>
+                    </div>
+                </div>
+
+                <!-- Latar Tempat Danau -->
+                <div>
+                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Suasana Danau</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="setEnvironment('day', this)" class="env-btn border-2 border-amber-500 bg-amber-50 p-3 rounded-2xl text-left transition flex items-center gap-2">
+                            <span class="text-xl">☀️</span>
+                            <span class="text-xs font-bold text-slate-700">Danau Cerah</span>
+                        </button>
+                        <button onclick="setEnvironment('sunset', this)" class="env-btn border-2 border-slate-200 p-3 rounded-2xl text-left transition flex items-center gap-2">
+                            <span class="text-xl">🌅</span>
+                            <span class="text-xs font-bold text-slate-700">Sunset Oranye</span>
+                        </button>
+                        <button onclick="setEnvironment('night', this)" class="env-btn border-2 border-slate-200 p-3 rounded-2xl text-left transition flex items-center gap-2">
+                            <span class="text-xl">🌙</span>
+                            <span class="text-xs font-bold text-slate-700">Malam Berbintang</span>
+                        </button>
+                        <button onclick="setEnvironment('autumn', this)" class="env-btn border-2 border-slate-200 p-3 rounded-2xl text-left transition flex items-center gap-2">
+                            <span class="text-xl">🍁</span>
+                            <span class="text-xs font-bold text-slate-700">Musim Gugur</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Efek Cuaca (Diperluas) -->
+                <div>
+                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Pilihan Cuaca</h3>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="setWeather('clear', this)" class="weather-btn border-2 border-amber-500 bg-amber-50 p-2 rounded-xl text-center text-xs font-bold text-slate-700">
+                            ☀️ Cerah
+                        </button>
+                        <button onclick="setWeather('rain', this)" class="weather-btn border-2 border-slate-200 p-2 rounded-xl text-center text-xs font-bold text-slate-700">
+                            🌧️ Hujan
+                        </button>
+                        <button onclick="setWeather('snow', this)" class="weather-btn border-2 border-slate-200 p-2 rounded-xl text-center text-xs font-bold text-slate-700">
+                            ❄️ Salju
+                        </button>
+                        <button onclick="setWeather('thunder', this)" class="weather-btn border-2 border-slate-200 p-2 rounded-xl text-center text-xs font-bold text-slate-700">
+                            ⚡ Petir
+                        </button>
+                        <button onclick="setWeather('sakura', this)" class="weather-btn border-2 border-slate-200 p-2 rounded-xl text-center text-xs font-bold text-slate-700">
+                            🌸 Sakura
+                        </button>
+                        <button onclick="setWeather('mist', this)" class="weather-btn border-2 border-slate-200 p-2 rounded-xl text-center text-xs font-bold text-slate-700">
+                            🌫️ Kabut
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Dekorasi Danau -->
+                <div>
+                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Tambah Dekorasi Danau</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="addLakeDecoration('lily')" class="border border-slate-200 hover:bg-slate-50 p-2 rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-1">
+                            🪷 Bunga Teratai
+                        </button>
+                        <button onclick="addLakeDecoration('rock')" class="border border-slate-200 hover:bg-slate-50 p-2 rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-1">
+                            🪨 Batu Kali
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="border-t pt-4 mt-6 text-center text-xs text-slate-400">
+            Raise your Ducklings! 🐣 - Tempat Santai & Menenangkan
+        </div>
+    </div>
+
+    <!-- Rename Modal Dialog -->
+    <div id="renameModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-white rounded-3xl p-6 w-80 shadow-2xl transform scale-95 transition-transform duration-300" id="renameModalBox">
+            <h3 class="font-bold text-lg text-slate-800 mb-2">Beri Nama Bebekmu</h3>
+            <p class="text-xs text-slate-500 mb-4">Panggil bebek lucu ini dengan nama khusus:</p>
+            <input type="text" id="duckNameInput" maxlength="15" value="Kwekie" class="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-2 font-bold text-slate-800 mb-4 focus:outline-none focus:ring-2 focus:ring-amber-400">
+            <div class="flex justify-end gap-2">
+                <button onclick="closeRenameModal()" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition">Batal</button>
+                <button onclick="saveDuckName()" class="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 shadow-md transition">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Support / Kritik & Saran -->
+    <div id="feedbackModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-white rounded-3xl p-6 w-96 shadow-2xl transform scale-95 transition-transform duration-300 border border-amber-100" id="feedbackModalBox">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="font-bold text-lg text-slate-800 flex items-center gap-2">
+                    Support our duckkies! 💛🐥
+                </h3>
+                <button onclick="closeFeedbackModal()" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <p class="text-xs text-slate-500 mb-4">Bantu kami membuat danau ini semakin indah dan nyaman untuk para bebek! Tulis kritik, saran, atau dukunganmu di bawah ini:</p>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Nama / Pemelihara</label>
+                    <input type="text" id="feedbackNameInput" placeholder="Nama kamu..." class="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Rating Pengalaman</label>
+                    <div class="flex gap-2 text-xl justify-center bg-amber-50 p-2 rounded-xl border border-amber-200" id="starRating">
+                        <button type="button" onclick="setRating(1)" class="star-btn hover:scale-125 transition">⭐</button>
+                        <button type="button" onclick="setRating(2)" class="star-btn hover:scale-125 transition">⭐</button>
+                        <button type="button" onclick="setRating(3)" class="star-btn hover:scale-125 transition">⭐</button>
+                        <button type="button" onclick="setRating(4)" class="star-btn hover:scale-125 transition">⭐</button>
+                        <button type="button" onclick="setRating(5)" class="star-btn hover:scale-125 transition">⭐</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Kritik & Saran</label>
+                    <textarea id="feedbackTextInput" rows="3" placeholder="Tulis masukan atau ide fitur baru di sini..." class="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"></textarea>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 mt-4">
+                <button onclick="closeFeedbackModal()" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition">Batal</button>
+                <button onclick="submitFeedback()" class="px-5 py-2 rounded-xl text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 shadow-md transition flex items-center gap-2">
+                    <i class="fa-solid fa-paper-plane"></i> Kirim Masukan
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Web Audio Synthesizer & Canvas Logic -->
+    <script>
+        // --- Setup Canvas ---
+        const canvas = document.getElementById('lakeCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // --- Web Audio Context ---
+        let audioCtx = null;
+        function getAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            return audioCtx;
+        }
+
+        function playQuackSound() {
+            if (state.audioMuted) return;
+            try {
+                const ctxAudio = getAudioContext();
+                const osc = ctxAudio.createOscillator();
+                const gain = ctxAudio.createGain();
+                
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(320, ctxAudio.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(150, ctxAudio.currentTime + 0.18);
+
+                gain.gain.setValueAtTime(0.2, ctxAudio.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctxAudio.currentTime + 0.18);
+
+                osc.connect(gain);
+                gain.connect(ctxAudio.destination);
+
+                osc.start();
+                osc.stop(ctxAudio.currentTime + 0.2);
+            } catch (e) { console.log(e); }
+        }
+
+        function playSplashSound() {
+            if (state.audioMuted) return;
+            try {
+                const ctxAudio = getAudioContext();
+                const bufferSize = ctxAudio.sampleRate * 0.15;
+                const buffer = ctxAudio.createBuffer(1, bufferSize, ctxAudio.sampleRate);
+                const output = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    output[i] = Math.random() * 2 - 1;
+                }
+                const whiteNoise = ctxAudio.createBufferSource();
+                whiteNoise.buffer = buffer;
+
+                const filter = ctxAudio.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(800, ctxAudio.currentTime);
+
+                const gain = ctxAudio.createGain();
+                gain.gain.setValueAtTime(0.15, ctxAudio.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctxAudio.currentTime + 0.15);
+
+                whiteNoise.connect(filter);
+                filter.connect(gain);
+                gain.connect(ctxAudio.destination);
+
+                whiteNoise.start();
+            } catch (e) { console.log(e); }
+        }
+
+        function playThunderSound() {
+            if (state.audioMuted) return;
+            try {
+                const ctxAudio = getAudioContext();
+                const bufferSize = ctxAudio.sampleRate * 0.6;
+                const buffer = ctxAudio.createBuffer(1, bufferSize, ctxAudio.sampleRate);
+                const output = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    output[i] = Math.random() * 2 - 1;
+                }
+                const noise = ctxAudio.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = ctxAudio.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(200, ctxAudio.currentTime);
+
+                const gain = ctxAudio.createGain();
+                gain.gain.setValueAtTime(0.3, ctxAudio.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctxAudio.currentTime + 0.6);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(ctxAudio.destination);
+                noise.start();
+            } catch (e) { console.log(e); }
+        }
+
+        function toggleAudio() {
+            state.audioMuted = !state.audioMuted;
+            const icon = document.getElementById('soundIcon');
+            if (state.audioMuted) {
+                icon.className = 'fa-solid fa-volume-xmark text-xs';
+                showToast('Suara dimatikan 🔇');
+            } else {
+                icon.className = 'fa-solid fa-volume-high text-xs';
+                showToast('Suara diaktifkan 🔊');
+                playQuackSound();
+            }
+        }
+
+        // --- STATE APLIKASI ---
+        const state = {
+            ducks: [
+                {
+                    id: 1,
+                    name: 'Kwekie',
+                    breed: 'classic',
+                    color: '#FACC15',
+                    beakColor: '#F97316',
+                    accessory: 'none',
+                    x: window.innerWidth * 0.5,
+                    y: window.innerHeight * 0.6,
+                    targetX: window.innerWidth * 0.5,
+                    targetY: window.innerHeight * 0.6,
+                    speed: 1.6,
+                    angle: 0,
+                    hunger: 85,
+                    happiness: 95,
+                    isSleeping: false,
+                    isBathing: false
+                }
+            ],
+            activeDuckIndex: 0,
+            environment: 'day',
+            weather: 'clear',
+            ripples: [],
+            foodItems: [],
+            toys: [],
+            decorations: [],
+            audioMuted: false,
+            leaves: [],
+            weatherParticles: []
+        };
+
+        // Inisialisasi Daun Mengapung di Danau
+        for (let i = 0; i < 15; i++) {
+            state.leaves.push({
+                x: Math.random() * window.innerWidth,
+                y: window.innerHeight * 0.45 + Math.random() * (window.innerHeight * 0.45),
+                size: 10 + Math.random() * 15,
+                angle: Math.random() * Math.PI * 2
+            });
+        }
+
+        function getActiveDuck() {
+            return state.ducks[state.activeDuckIndex] || state.ducks[0];
+        }
+
+        function getBreedName(breed) {
+            const map = {
+                classic: 'Bebek Kuning Klasik',
+                wood: 'Bebek Kayu Alam',
+                gothic: 'Bebek Hitam Misterius',
+                golden: 'Bebek Emas Mewah'
+            };
+            return map[breed] || 'Bebek Lucu';
+        }
+
+        function updateDuckSelectDropdown() {
+            const select = document.getElementById('duckSelect');
+            select.innerHTML = '';
+            state.ducks.forEach((d, index) => {
+                const opt = document.createElement('option');
+                opt.value = index;
+                opt.innerText = `${d.name} (${getBreedName(d.breed)})`;
+                if (index === state.activeDuckIndex) opt.selected = true;
+                select.appendChild(opt);
+            });
+        }
+
+        function switchActiveDuck(index) {
+            state.activeDuckIndex = parseInt(index);
+            updateDuckUIInfo();
+            const duck = getActiveDuck();
+            showToast(`Mengontrol bebek: ${duck.name} 🦆`);
+        }
+
+        function addNewDuck() {
+            const names = ['Quacky', 'Ducky', 'Waddles', 'Puddles', 'Mellow', 'Bubu', 'Chirpy', 'Piko', 'Milo', 'Kiko', 'Mochi', 'Boba'];
+            const randomName = names[Math.floor(Math.random() * names.length)] + " #" + (state.ducks.length + 1);
+            const colors = ['#FDE047', '#38BDF8', '#F472B6', '#4ADE80', '#C084FC', '#FACC15', '#FB923C'];
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
+            const newDuck = {
+                id: Date.now(),
+                name: randomName,
+                breed: 'classic',
+                color: randomColor,
+                beakColor: '#FB923C',
+                accessory: 'none',
+                x: Math.random() * (canvas.width - 200) + 100,
+                y: canvas.height * 0.5 + Math.random() * (canvas.height * 0.35),
+                targetX: Math.random() * (canvas.width - 200) + 100,
+                targetY: canvas.height * 0.5 + Math.random() * (canvas.height * 0.35),
+                speed: 1.4 + Math.random() * 0.8,
+                angle: 0,
+                hunger: 80,
+                happiness: 90,
+                isSleeping: false,
+                isBathing: false
+            };
+
+            state.ducks.push(newDuck);
+            state.activeDuckIndex = state.ducks.length - 1;
+            updateDuckSelectDropdown();
+            updateDuckUIInfo();
+            addRipple(newDuck.x, newDuck.y, 40);
+            playSplashSound();
+            showToast(`Bebek baru ${newDuck.name} berenang masuk ke danau! 🎉`);
+        }
+
+        function setAccessory(acc, btnElement) {
+            const duck = getActiveDuck();
+            duck.accessory = acc;
+
+            document.querySelectorAll('.acc-btn').forEach(b => {
+                b.classList.remove('border-amber-500', 'bg-amber-50');
+                b.classList.add('border-slate-200');
+            });
+            if (btnElement) {
+                btnElement.classList.remove('border-slate-200');
+                btnElement.classList.add('border-amber-500', 'bg-amber-50');
+            }
+
+            showToast(`Aksesori ${duck.name} diperbarui! ✨`);
+        }
+
+        function setDuckBreed(breed, btnElement) {
+            const duck = getActiveDuck();
+            duck.breed = breed;
+            if (breed === 'classic') {
+                duck.color = '#FACC15';
+                duck.beakColor = '#F97316';
+            } else if (breed === 'wood') {
+                duck.color = '#15803D';
+                duck.beakColor = '#DC2626';
+            } else if (breed === 'gothic') {
+                duck.color = '#334155';
+                duck.beakColor = '#0F172A';
+            } else if (breed === 'golden') {
+                duck.color = '#EAB308';
+                duck.beakColor = '#CA8A04';
+            }
+
+            document.getElementById('duckColorPicker').value = duck.color;
+            updateDuckUIInfo();
+            updateDuckSelectDropdown();
+
+            document.querySelectorAll('.breed-btn').forEach(b => {
+                b.classList.remove('border-amber-500', 'bg-amber-50');
+                b.classList.add('border-slate-200');
+            });
+            if (btnElement) {
+                btnElement.classList.remove('border-slate-200');
+                btnElement.classList.add('border-amber-500', 'bg-amber-50');
+            }
+
+            showToast(`Jenis ${duck.name} diganti ke ${getBreedName(breed)}!`);
+        }
+
+        function customDuckColor(colorHex) {
+            const duck = getActiveDuck();
+            duck.color = colorHex;
+            showToast(`Warna bulu ${duck.name} disesuaikan! 🎨`);
+        }
+
+        function setEnvironment(env, btnElement) {
+            state.environment = env;
+            document.querySelectorAll('.env-btn').forEach(b => {
+                b.classList.remove('border-amber-500', 'bg-amber-50');
+                b.classList.add('border-slate-200');
+            });
+            if (btnElement) {
+                btnElement.classList.remove('border-slate-200');
+                btnElement.classList.add('border-amber-500', 'bg-amber-50');
+            }
+            showToast(`Suasana danau diubah! 🏞️`);
+        }
+
+        function setWeather(weather, btnElement) {
+            state.weather = weather;
+            state.weatherParticles = [];
+            const overlay = document.getElementById('weatherOverlay');
+            overlay.innerHTML = '';
+            overlay.className = 'weather-effect transition-all duration-1000';
+
+            if (weather === 'rain') {
+                overlay.classList.add('weather-rain');
+                for (let i = 0; i < 40; i++) {
+                    state.weatherParticles.push({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        speed: 12 + Math.random() * 8,
+                        length: 15 + Math.random() * 10
+                    });
+                }
+            } else if (weather === 'snow') {
+                for (let i = 0; i < 50; i++) {
+                    state.weatherParticles.push({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        radius: 2 + Math.random() * 3,
+                        speedY: 1 + Math.random() * 2,
+                        speedX: Math.sin(i) * 0.5
+                    });
+                }
+            } else if (weather === 'sakura') {
+                for (let i = 0; i < 35; i++) {
+                    state.weatherParticles.push({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        size: 6 + Math.random() * 4,
+                        speedY: 0.8 + Math.random() * 1.5,
+                        speedX: 0.5 + Math.random() * 1,
+                        rot: Math.random() * Math.PI
+                    });
+                }
+            } else if (weather === 'thunder') {
+                overlay.classList.add('weather-rain');
+                showToast(`Waspada badai petir! ⚡`);
+            } else if (weather === 'mist') {
+                overlay.style.background = 'rgba(255, 255, 255, 0.2)';
+                overlay.style.backdropFilter = 'blur(3px)';
+            }
+
+            document.querySelectorAll('.weather-btn').forEach(b => {
+                b.classList.remove('border-amber-500', 'bg-amber-50');
+                b.classList.add('border-slate-200');
+            });
+            if (btnElement) {
+                btnElement.classList.remove('border-slate-200');
+                btnElement.classList.add('border-amber-500', 'bg-amber-50');
+            }
+
+            showToast(`Cuaca: ${weather.toUpperCase()} ✨`);
+        }
+
+        function addLakeDecoration(type) {
+            const dec = {
+                type,
+                x: canvas.width * 0.2 + Math.random() * (canvas.width * 0.6),
+                y: canvas.height * 0.5 + Math.random() * (canvas.height * 0.35)
+            };
+            state.decorations.push(dec);
+            showToast(`Dekorasi ${type === 'lily' ? 'Teratai' : 'Batu Kali'} ditambahkan! 🪷`);
+        }
+
+        // --- LOGIKA LUKISAN DANAU & ILUSTRASI LATAR ---
+        function drawBackground() {
+            const w = canvas.width;
+            const h = canvas.height;
+            const lakeY = h * 0.42;
+
+            // Gradient Langit
+            let skyGrad = ctx.createLinearGradient(0, 0, 0, lakeY);
+            if (state.environment === 'day') {
+                skyGrad.addColorStop(0, '#bae6fd');
+                skyGrad.addColorStop(1, '#e0f2fe');
+            } else if (state.environment === 'sunset') {
+                skyGrad.addColorStop(0, '#fdba74');
+                skyGrad.addColorStop(0.5, '#f472b6');
+                skyGrad.addColorStop(1, '#c084fc');
+            } else if (state.environment === 'night') {
+                skyGrad.addColorStop(0, '#0f172a');
+                skyGrad.addColorStop(1, '#1e1b4b');
+            } else if (state.environment === 'autumn') {
+                skyGrad.addColorStop(0, '#fed7aa');
+                skyGrad.addColorStop(1, '#ffedd5');
+            }
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, w, lakeY);
+
+            // Bintang jika Malam
+            if (state.environment === 'night') {
+                ctx.fillStyle = '#ffffff';
+                for (let i = 0; i < 40; i++) {
+                    const sx = (Math.sin(i * 99) * 0.5 + 0.5) * w;
+                    const sy = (Math.cos(i * 33) * 0.5 + 0.5) * (lakeY - 20);
+                    ctx.globalAlpha = 0.5 + Math.sin(Date.now() * 0.003 + i) * 0.5;
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, 1.2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1.0;
+            }
+
+            // Pegunungan Latar Belakang
+            ctx.fillStyle = state.environment === 'night' ? '#1e293b' : (state.environment === 'sunset' ? '#7c2d12' : '#047857');
+            ctx.globalAlpha = 0.4;
+            ctx.beginPath();
+            ctx.moveTo(0, lakeY);
+            ctx.lineTo(w * 0.25, lakeY - 80);
+            ctx.lineTo(w * 0.55, lakeY - 30);
+            ctx.lineTo(w * 0.85, lakeY - 100);
+            ctx.lineTo(w, lakeY - 20);
+            ctx.lineTo(w, lakeY);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.globalAlpha = 0.7;
+            ctx.beginPath();
+            ctx.moveTo(0, lakeY);
+            ctx.lineTo(w * 0.15, lakeY - 45);
+            ctx.lineTo(w * 0.4, lakeY - 15);
+            ctx.lineTo(w * 0.7, lakeY - 60);
+            ctx.lineTo(w, lakeY - 10);
+            ctx.lineTo(w, lakeY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+
+            // Air Danau
+            let waterGrad = ctx.createLinearGradient(0, lakeY, 0, h);
+            if (state.environment === 'day') {
+                waterGrad.addColorStop(0, '#38bdf8');
+                waterGrad.addColorStop(1, '#0284c7');
+            } else if (state.environment === 'sunset') {
+                waterGrad.addColorStop(0, '#fb923c');
+                waterGrad.addColorStop(1, '#c084fc');
+            } else if (state.environment === 'night') {
+                waterGrad.addColorStop(0, '#1e293b');
+                waterGrad.addColorStop(1, '#0f172a');
+            } else if (state.environment === 'autumn') {
+                waterGrad.addColorStop(0, '#0284c7');
+                waterGrad.addColorStop(1, '#0f766e');
+            }
+            ctx.fillStyle = waterGrad;
+            ctx.fillRect(0, lakeY, w, h - lakeY);
+
+            // Dermaga Kayu Kecil (Sisi Kiri)
+            ctx.fillStyle = '#78350f';
+            ctx.fillRect(0, lakeY - 10, w * 0.18, 16);
+            ctx.fillStyle = '#451a03';
+            ctx.fillRect(w * 0.04, lakeY, 10, h - lakeY);
+            ctx.fillRect(w * 0.12, lakeY, 10, h - lakeY);
+
+            // Teratai / Daun mengapung
+            state.leaves.forEach(leaf => {
+                ctx.fillStyle = state.environment === 'autumn' ? '#c2410c' : '#15803d';
+                ctx.beginPath();
+                ctx.ellipse(leaf.x, leaf.y, leaf.size, leaf.size * 0.6, leaf.angle, 0, Math.PI * 1.8);
+                ctx.fill();
+            });
+
+            // Draw Custom Lake Decorations
+            state.decorations.forEach(d => {
+                if (d.type === 'lily') {
+                    ctx.font = '22px sans-serif';
+                    ctx.fillText('🪷', d.x, d.y);
+                } else if (d.type === 'rock') {
+                    ctx.fillStyle = '#64748b';
+                    ctx.beginPath();
+                    ctx.ellipse(d.x, d.y, 14, 8, 0.2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+        }
+
+        function renderWeatherParticles() {
+            if (state.weather === 'snow') {
+                ctx.fillStyle = '#ffffff';
+                state.weatherParticles.forEach(p => {
+                    p.y += p.speedY;
+                    p.x += p.speedX;
+                    if (p.y > canvas.height) p.y = 0;
+                    if (p.x > canvas.width) p.x = 0;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            } else if (state.weather === 'sakura') {
+                ctx.fillStyle = '#f472b6';
+                state.weatherParticles.forEach(p => {
+                    p.y += p.speedY;
+                    p.x += p.speedX;
+                    if (p.y > canvas.height) p.y = 0;
+                    if (p.x > canvas.width) p.x = 0;
+                    ctx.beginPath();
+                    ctx.ellipse(p.x, p.y, p.size, p.size * 0.5, p.rot, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            } else if (state.weather === 'rain' || state.weather === 'thunder') {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.lineWidth = 1.2;
+                state.weatherParticles.forEach(p => {
+                    p.y += p.speed;
+                    if (p.y > canvas.height) p.y = 0;
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y);
+                    ctx.lineTo(p.x - 2, p.y + p.length);
+                    ctx.stroke();
+                });
+
+                if (state.weather === 'thunder' && Math.random() < 0.008) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    playThunderSound();
+                }
+            }
+        }
+
+        // --- LOGIKA RIAK AIR (RIPPLES) ---
+        function addRipple(x, y, maxR = 30, speed = 1) {
+            state.ripples.push({ x, y, r: 2, maxR, opacity: 0.8, speed });
+        }
+
+        function updateAndDrawRipples() {
+            for (let i = state.ripples.length - 1; i >= 0; i--) {
+                const r = state.ripples[i];
+                r.r += r.speed;
+                r.opacity -= 0.015;
+
+                if (r.opacity <= 0) {
+                    state.ripples.splice(i, 1);
+                    continue;
+                }
+
+                ctx.strokeStyle = `rgba(255, 255, 255, ${r.opacity})`;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.ellipse(r.x, r.y, r.r, r.r * 0.4, 0, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        }
+
+        // --- LOGIKA DUCK RENDERING & MOVEMENT ---
+        function updateDuckPositions() {
+            const minY = canvas.height * 0.45;
+            const maxY = canvas.height - 100;
+
+            state.ducks.forEach(duck => {
+                if (duck.isSleeping) return;
+
+                const dx = duck.targetX - duck.x;
+                const dy = duck.targetY - duck.y;
+                const dist = Math.hypot(dx, dy);
+
+                if (dist > 5) {
+                    duck.x += (dx / dist) * duck.speed;
+                    duck.y += (dy / dist) * duck.speed;
+                    duck.angle = Math.atan2(dy, dx);
+
+                    if (Math.random() < 0.15) {
+                        addRipple(duck.x, duck.y + 10, 8, 0.4);
+                    }
+                } else {
+                    if (Math.random() < 0.006) {
+                        const margin = 80;
+                        duck.targetX = margin + Math.random() * (canvas.width - margin * 2);
+                        duck.targetY = minY + Math.random() * (maxY - minY);
+                    }
+                }
+
+                if (duck.y < minY) duck.y = minY;
+                if (duck.y > maxY) duck.y = maxY;
+            });
+        }
+
+        function drawDuck(duck) {
+            ctx.save();
+            ctx.translate(duck.x, duck.y);
+
+            const facingLeft = Math.cos(duck.angle) < 0;
+            if (facingLeft) {
+                ctx.scale(-1, 1);
+            }
+
+            // Animasi mengapung imut (bobbing & wiggling)
+            const bobbing = duck.isSleeping ? Math.sin(Date.now() * 0.002 + duck.id) * 1.5 : Math.sin(Date.now() * 0.005 + duck.id) * 3.5;
+            const wiggle = duck.isSleeping ? 0 : Math.cos(Date.now() * 0.006 + duck.id) * 0.05;
+            ctx.translate(0, bobbing);
+            ctx.rotate(wiggle);
+
+            // Highlight jika bebek aktif
+            if (duck === getActiveDuck() && state.ducks.length > 1) {
+                ctx.strokeStyle = 'rgba(251, 191, 36, 0.85)';
+                ctx.lineWidth = 3;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.ellipse(0, 5, 36, 24, 0, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Bayangan Air Mengapung
+            ctx.fillStyle = 'rgba(0,0,0,0.15)';
+            ctx.beginPath();
+            ctx.ellipse(0, 16, 28, 9, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Badan Bebek Extra Chubby & Imut
+            ctx.fillStyle = duck.color;
+            ctx.beginPath();
+            ctx.ellipse(-4, 5, 25, 19, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Ekor Bebek Bulat Imut
+            ctx.beginPath();
+            ctx.arc(-26, 0, 7, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Kepala Bebek Besar & Imut (Chibi Ratio)
+            ctx.beginPath();
+            ctx.arc(12, -14, 17, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Paruh Bebek Imut & Bulat
+            ctx.fillStyle = duck.beakColor;
+            ctx.beginPath();
+            ctx.ellipse(27, -10, 8, 5, 0.1, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Mata Bebek
+            if (duck.isSleeping) {
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(17, -15, 3, 0, Math.PI);
+                ctx.stroke();
+
+                ctx.font = '14px sans-serif';
+                ctx.fillText('💤', 18, -30);
+            } else {
+                ctx.fillStyle = '#0f172a';
+                ctx.beginPath();
+                ctx.arc(17, -17, 3.5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Kilau Mata Ganda (Sparkle Eyes)
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(18.5, -18.5, 1.4, 0, Math.PI * 2);
+                ctx.arc(15.5, -15.5, 0.7, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Pipi Merah Merona (Cute Blush)
+            ctx.fillStyle = 'rgba(244, 63, 94, 0.45)';
+            ctx.beginPath();
+            ctx.ellipse(11, -8, 5, 3.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Busa Mandi Sabun
+            if (duck.isBathing) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.beginPath();
+                ctx.arc(-5, -5, 6, 0, Math.PI * 2);
+                ctx.arc(5, -20, 5, 0, Math.PI * 2);
+                ctx.arc(18, -24, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Sayap Kepak Imut (Little Wing Flap Animation)
+            const wingFlap = Math.sin(Date.now() * 0.008 + duck.id) * 0.15;
+            ctx.fillStyle = adjustColor(duck.color, -20);
+            ctx.save();
+            ctx.translate(-5, 4);
+            ctx.rotate(wingFlap);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 13, 9, -0.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            // Render Aksesori Bebek
+            drawAccessory(duck.accessory);
+
+            // Efek Sparkle Bebek Emas
+            if (duck.breed === 'golden' && Math.random() < 0.35) {
+                ctx.fillStyle = '#fef08a';
+                ctx.fillRect(Math.random() * 32 - 16, Math.random() * 32 - 22, 3, 3);
+            }
+
+            ctx.restore();
+        }
+
+        function drawAccessory(acc) {
+            if (acc === 'crown') {
+                ctx.font = '16px sans-serif';
+                ctx.fillText('👑', 2, -26);
+            } else if (acc === 'glasses') {
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(11, -18, 10, 5);
+            } else if (acc === 'ribbon') {
+                ctx.font = '14px sans-serif';
+                ctx.fillText('🎀', 2, -24);
+            } else if (acc === 'hat') {
+                ctx.font = '16px sans-serif';
+                ctx.fillText('👒', 2, -26);
+            } else if (acc === 'witch') {
+                ctx.font = '16px sans-serif';
+                ctx.fillText('🧙‍♀️', 2, -26);
+            } else if (acc === 'flower') {
+                ctx.font = '14px sans-serif';
+                ctx.fillText('🌸', 5, -25);
+            }
+        }
+
+        function adjustColor(hex, amount) {
+            let usePound = false;
+            if (hex[0] == "#") {
+                hex = hex.slice(1);
+                usePound = true;
+            }
+            let num = parseInt(hex, 16);
+            let r = (num >> 16) + amount;
+            if (r > 255) r = 255; else if (r < 0) r = 0;
+            let b = ((num >> 8) & 0x00FF) + amount;
+            if (b > 255) b = 255; else if (b < 0) b = 0;
+            let g = (num & 0x0000FF) + amount;
+            if (g > 255) g = 255; else if (g < 0) g = 0;
+            return (usePound ? "#" : "") + (g | (b << 8) | (r << 16)).toString(16).padStart(6, '0');
+        }
+
+        // --- MAKANAN & MAINAN ---
+        function feedDuck(type) {
+            const duck = getActiveDuck();
+            duck.isSleeping = false;
+            const targetX = duck.x + (Math.random() * 80 - 40);
+            const targetY = duck.y + (Math.random() * 40 - 20);
+            
+            state.foodItems.push({ x: targetX, y: targetY });
+            addRipple(targetX, targetY, 20);
+
+            duck.targetX = targetX;
+            duck.targetY = targetY;
+
+            duck.hunger = Math.min(100, duck.hunger + 15);
+            updateDuckUIInfo();
+            showToast(`${duck.name} melahap makanan! 🌾`);
+            playSplashSound();
+        }
+
+        function updateAndDrawFood() {
+            for (let i = state.foodItems.length - 1; i >= 0; i--) {
+                const f = state.foodItems[i];
+                
+                ctx.fillStyle = '#d97706';
+                ctx.beginPath();
+                ctx.arc(f.x, f.y, 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                state.ducks.forEach(duck => {
+                    const dist = Math.hypot(duck.x - f.x, duck.y - f.y);
+                    if (dist < 20) {
+                        createHearts(f.x, f.y);
+                        state.foodItems.splice(i, 1);
+                        playQuackSound();
+                    }
+                });
+            }
+        }
+
+        function spawnToy() {
+            const duck = getActiveDuck();
+            duck.isSleeping = false;
+            const toyX = Math.random() * (canvas.width - 200) + 100;
+            const toyY = canvas.height * 0.5 + Math.random() * (canvas.height * 0.35);
+            
+            state.toys.push({ x: toyX, y: toyY, bounce: 0 });
+            addRipple(toyX, toyY, 25);
+
+            duck.targetX = toyX;
+            duck.targetY = toyY;
+            
+            duck.happiness = Math.min(100, duck.happiness + 20);
+            updateDuckUIInfo();
+            showToast(`${duck.name} mengejar bola! ⚽`);
+            playSplashSound();
+        }
+
+        function updateAndDrawToys() {
+            for (let i = state.toys.length - 1; i >= 0; i--) {
+                const t = state.toys[i];
+                t.bounce += 0.05;
+                const offsetY = Math.sin(t.bounce) * 4;
+
+                ctx.font = '20px sans-serif';
+                ctx.fillText('⚽', t.x - 10, t.y + offsetY);
+
+                state.ducks.forEach(duck => {
+                    const dist = Math.hypot(duck.x - t.x, duck.y - t.y);
+                    if (dist < 30) {
+                        addRipple(t.x, t.y, 35);
+                        t.x += Math.cos(duck.angle) * 30;
+                        t.y += Math.sin(duck.angle) * 15;
+                    }
+                });
+            }
+        }
+
+        function washDuck() {
+            const duck = getActiveDuck();
+            duck.isBathing = !duck.isBathing;
+            duck.happiness = Math.min(100, duck.happiness + 15);
+            updateDuckUIInfo();
+            playSplashSound();
+            showToast(duck.isBathing ? `${duck.name} sedang mandi busa! 🫧` : `${duck.name} selesai mandi! ✨`);
+        }
+
+        function napDuck() {
+            const duck = getActiveDuck();
+            duck.isSleeping = !duck.isSleeping;
+            if (duck.isSleeping) {
+                showToast(`${duck.name} sedang tidur lelap... 💤`);
+            } else {
+                showToast(`${duck.name} bangun dan segar kembali! ☀️`);
+            }
+            updateDuckUIInfo();
+        }
+
+        // --- EFEK KASIH SAYANG & PARTIKEL ---
+        function createHearts(x, y) {
+            for (let i = 0; i < 3; i++) {
+                const heart = document.createElement('div');
+                heart.className = 'heart-particle';
+                heart.innerHTML = '❤️';
+                heart.style.left = (x + (Math.random() * 30 - 15)) + 'px';
+                heart.style.top = (y + (Math.random() * 20 - 10)) + 'px';
+                document.body.appendChild(heart);
+
+                setTimeout(() => heart.remove(), 1200);
+            }
+        }
+
+        // --- INTERAKSI KLIK CANVAS ---
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+
+            addRipple(clickX, clickY, 35);
+            playSplashSound();
+
+            let clickedDuckIndex = null;
+            state.ducks.forEach((duck, index) => {
+                const distToDuck = Math.hypot(clickX - duck.x, clickY - duck.y);
+                if (distToDuck < 45) {
+                    clickedDuckIndex = index;
+                }
+            });
+
+            if (clickedDuckIndex !== null) {
+                state.activeDuckIndex = clickedDuckIndex;
+                updateDuckSelectDropdown();
+                updateDuckUIInfo();
+                petDuck();
+            } else {
+                const duck = getActiveDuck();
+                if (!duck.isSleeping) {
+                    duck.targetX = clickX;
+                    duck.targetY = clickY;
+                }
+            }
+        });
+
+        function petDuck() {
+            const duck = getActiveDuck();
+            createHearts(duck.x, duck.y - 30);
+            duck.happiness = Math.min(100, duck.happiness + 10);
+            updateDuckUIInfo();
+            playQuackSound();
+            showToast(`Kamu mengelus ${duck.name}! ❤️`);
+        }
+
+        function splashWater() {
+            const duck = getActiveDuck();
+            addRipple(duck.x, duck.y, 50, 1.2);
+            playSplashSound();
+            showToast(`${duck.name} gembira bermain cipratan air! 💦`);
+        }
+
+        // --- LOGIKA UI & MODAL ---
+        function updateDuckUIInfo() {
+            const duck = getActiveDuck();
+            document.getElementById('duckNameDisplay').innerText = duck.name;
+            document.getElementById('duckBreedDisplay').innerText = getBreedName(duck.breed);
+            document.getElementById('duckAvatarContainer').innerText = duck.breed === 'wood' ? '🦆' : (duck.breed === 'gothic' ? '🦅' : '🐤');
+            document.getElementById('hungerBar').style.width = `${duck.hunger}%`;
+            document.getElementById('happyBar').style.width = `${duck.happiness}%`;
+
+            const moodBadge = document.getElementById('duckMoodBadge');
+            if (duck.isSleeping) moodBadge.innerText = '😴';
+            else if (duck.happiness > 75) moodBadge.innerText = '🥰';
+            else if (duck.happiness > 40) moodBadge.innerText = '😊';
+            else moodBadge.innerText = '🥺';
+        }
+
+        function toggleControlPanel() {
+            const panel = document.getElementById('controlPanel');
+            panel.classList.toggle('translate-x-full');
+        }
+
+        function openRenameModal() {
+            const modal = document.getElementById('renameModal');
+            const box = document.getElementById('renameModalBox');
+            const duck = getActiveDuck();
+
+            document.getElementById('duckNameInput').value = duck.name;
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            box.classList.remove('scale-95');
+            box.classList.add('scale-100');
+        }
+
+        function closeRenameModal() {
+            const modal = document.getElementById('renameModal');
+            const box = document.getElementById('renameModalBox');
+
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            box.classList.remove('scale-100');
+            box.classList.add('scale-95');
+        }
+
+        function saveDuckName() {
+            const input = document.getElementById('duckNameInput').value.trim();
+            if (input) {
+                const duck = getActiveDuck();
+                duck.name = input;
+                updateDuckUIInfo();
+                updateDuckSelectDropdown();
+                showToast(`Nama bebek diubah menjadi ${input}! ✨`);
+            }
+            closeRenameModal();
+        }
+
+        // --- LOGIKA FEEDBACK / KRITIK & SARAN ---
+        let currentRating = 5;
+
+        function openFeedbackModal() {
+            const modal = document.getElementById('feedbackModal');
+            const box = document.getElementById('feedbackModalBox');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            box.classList.remove('scale-95');
+            box.classList.add('scale-100');
+        }
+
+        function closeFeedbackModal() {
+            const modal = document.getElementById('feedbackModal');
+            const box = document.getElementById('feedbackModalBox');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            box.classList.remove('scale-100');
+            box.classList.add('scale-95');
+        }
+
+        function setRating(rating) {
+            currentRating = rating;
+            const stars = document.querySelectorAll('.star-btn');
+            stars.forEach((s, idx) => {
+                s.style.opacity = idx < rating ? '1' : '0.3';
+            });
+        }
+
+        function submitFeedback() {
+            const name = document.getElementById('feedbackNameInput').value.trim() || 'Teman Bebek';
+            const feedbackText = document.getElementById('feedbackTextInput').value.trim();
+
+            if (!feedbackText) {
+                showToast('Mohon tulis masukan atau saran terlebih dahulu! 🐥');
+                return;
+            }
+
+            // Animasi ucapan terima kasih
+            const duck = getActiveDuck();
+            createHearts(duck.x, duck.y - 40);
+            playQuackSound();
+
+            showToast(`Terima kasih ${name}! Bebek-bebek sangat senang atas dukunganmu! 💛✨`);
+
+            // Reset Form
+            document.getElementById('feedbackTextInput').value = '';
+            closeFeedbackModal();
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toastMessage');
+            toast.innerText = msg;
+            toast.classList.remove('opacity-0', 'translate-y-4');
+            toast.classList.add('opacity-100', 'translate-y-0');
+
+            clearTimeout(window.toastTimer);
+            window.toastTimer = setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', 'translate-y-4');
+            }, 2500);
+        }
+
+        // Pengurangan statistik bebek seiring waktu & pemulihan saat tidur
+        setInterval(() => {
+            state.ducks.forEach(duck => {
+                if (duck.isSleeping) {
+                    duck.happiness = Math.min(100, duck.happiness + 4);
+                } else {
+                    duck.hunger = Math.max(10, duck.hunger - 1);
+                    duck.happiness = Math.max(10, duck.happiness - 1);
+                }
+            });
+            updateDuckUIInfo();
+        }, 5000);
+
+        // --- MAIN ANIMATION LOOP ---
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            drawBackground();
+
+            updateAndDrawRipples();
+            updateAndDrawFood();
+            updateAndDrawToys();
+
+            updateDuckPositions();
+            state.ducks.forEach(duck => drawDuck(duck));
+
+            renderWeatherParticles();
+
+            requestAnimationFrame(animate);
+        }
+
+        window.onload = () => {
+            animate();
+            updateDuckSelectDropdown();
+            updateDuckUIInfo();
+        };
+    </script>
+</body>
+</html>
+```
